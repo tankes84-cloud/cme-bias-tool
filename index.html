@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CME Bias Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #020617; --surface: #0f172a; --surface2: #1e293b;
+    --border: #1e293b; --border2: #334155;
+    --text: #f1f5f9; --muted: #64748b; --dim: #475569;
+    --green: #10b981; --green2: #34d399; --green3: #6ee7b7;
+    --red: #ef4444; --red2: #f87171; --red3: #fca5a5;
+    --live: #22c55e; --blue: #3b82f6;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh; padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; }
+
+  /* Header */
+  .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
+  .title { font-size:18px; font-weight:800; letter-spacing:3px; }
+  .badge {
+    display:inline-flex; align-items:center; gap:7px; margin-top:8px;
+    padding:4px 12px; border-radius:20px;
+    border:1px solid var(--border2); background:var(--surface); transition:all 0.3s;
+  }
+  .badge.live { background:#052e16; border-color:#16a34a; }
+  .badge-dot { width:7px; height:7px; border-radius:50%; background:var(--dim); transition:all 0.3s; }
+  .badge.live .badge-dot { background:var(--live); box-shadow:0 0 8px var(--live); animation:pulse 2s infinite; }
+  .badge-text { font-size:10px; font-weight:700; color:var(--dim); transition:color 0.3s; }
+  .badge.live .badge-text { color:var(--live); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* Buttons */
+  .btn { font-family:inherit; font-size:12px; font-weight:700; border:none; border-radius:8px; cursor:pointer; transition:opacity 0.15s; }
+  .btn:disabled { opacity:0.5; cursor:default; }
+  .btn-ghost { background:var(--surface2); border:1px solid var(--border2); color:var(--muted); padding:9px 16px; }
+  .btn-primary { background:var(--blue); color:#fff; padding:9px 18px; }
+  .btn-danger { background:none; border:none; color:var(--dim); font-size:11px; font-family:inherit; cursor:pointer; }
+
+  /* Panel */
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .panel-label { font-size:11px; color:var(--muted); margin-bottom:8px; }
+  .input-row { display:flex; gap:8px; }
+  .input-row input {
+    flex:1; background:var(--surface2); border:1px solid var(--border2);
+    border-radius:8px; padding:9px 13px; color:var(--text);
+    font-family:inherit; font-size:12px; outline:none;
+  }
+  .input-row input:focus { border-color:var(--blue); }
+  .error { color:var(--red2); font-size:11px; margin-top:8px; }
+
+  /* Progress bar */
+  .progress-wrap {
+    margin-top:12px; display:none;
+  }
+  .progress-label {
+    font-size:11px; color:var(--muted); margin-bottom:6px;
+    display:flex; justify-content:space-between;
+  }
+  .progress-track {
+    height:6px; background:var(--surface2); border-radius:4px; overflow:hidden;
+  }
+  .progress-fill {
+    height:100%; background:var(--blue); border-radius:4px;
+    transition:width 0.4s ease; width:0%;
+  }
+  .progress-steps {
+    display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:8px;
+  }
+  .step-dot {
+    height:4px; border-radius:2px; background:var(--surface2); transition:background 0.3s;
+  }
+  .step-dot.done { background:var(--green); }
+  .step-dot.loading { background:var(--blue); animation:blink 0.8s infinite; }
+  .step-dot.error { background:var(--red); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .step-labels { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:4px; }
+  .step-label { font-size:9px; color:var(--dim); text-align:center; }
+
+  /* Live banner */
+  .live-banner {
+    background:#052e16; border:1px solid #16a34a33;
+    border-radius:10px; padding:10px 16px; margin-bottom:14px;
+    display:none; justify-content:space-between; align-items:center;
+  }
+  .live-banner span { font-size:11px; color:var(--live); }
+
+  /* Tabs */
+  .tabs { display:flex; gap:4px; background:var(--surface); border-radius:10px; padding:4px; margin-bottom:14px; }
+  .tab {
+    flex:1; padding:9px; border-radius:8px; border:none;
+    background:transparent; color:var(--dim);
+    font-family:inherit; font-size:12px; font-weight:400; cursor:pointer; transition:all 0.15s;
+  }
+  .tab.active { background:var(--surface2); color:var(--text); font-weight:700; }
+
+  /* Cards */
+  .card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:14px 16px;
+    cursor:pointer; margin-bottom:8px; transition:border-color 0.2s;
+  }
+  .card:hover { border-color:var(--border2); }
+  .card-row { display:flex; justify-content:space-between; align-items:center; }
+  .cur-icon {
+    width:36px; height:36px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:12px;
+  }
+  .cur-name { font-weight:700; font-size:14px; color:var(--text); }
+  .cur-sym { font-size:10px; color:var(--dim); margin-top:1px; }
+  .bias-text { font-size:13px; font-weight:700; }
+  .conf-row { display:flex; gap:6px; justify-content:flex-end; align-items:center; margin-top:2px; }
+  .conf-label { font-size:10px; }
+  .score-label { font-size:10px; color:var(--dim); }
+
+  /* Score bar */
+  .score-bar { position:relative; height:6px; background:var(--surface2); border-radius:4px; overflow:hidden; margin-top:7px; }
+  .score-bar-mid { position:absolute; left:50%; top:0; width:1px; height:100%; background:var(--border2); z-index:1; }
+  .score-bar-fill { position:absolute; height:100%; border-radius:4px; transition:all 0.4s ease; }
+
+  /* TF grid */
+  .tf-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px; }
+  .tf-card { background:var(--surface2); border-radius:8px; padding:10px 12px; }
+  .tf-label { font-size:10px; color:var(--muted); font-weight:700; margin-bottom:4px; }
+  .tf-row { font-size:11px; color:#94a3b8; }
+  .tf-val { color:var(--text); }
+  .tf-dist { font-size:12px; font-weight:700; margin-top:4px; }
+
+  /* Pair */
+  .pair-input {
+    background:var(--surface2); border:1px solid var(--border2); border-radius:8px;
+    padding:11px 16px; color:var(--text); font-family:'JetBrains Mono',monospace;
+    font-size:17px; letter-spacing:3px; outline:none; flex:1;
+  }
+  .pair-input:focus { border-color:var(--blue); }
+  .pair-result { border-radius:10px; padding:18px; text-align:center; margin-top:14px; }
+  .pair-arrow { font-size:28px; font-weight:800; letter-spacing:3px; }
+  .pair-dir { font-size:17px; font-weight:700; margin-top:4px; }
+  .pair-diff { font-size:11px; color:var(--dim); margin-top:6px; }
+  .cur-compare { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .cur-box { background:var(--surface2); border-radius:8px; padding:14px; text-align:center; }
+  .cur-box-sym { font-size:10px; color:var(--muted); }
+  .cur-box-name { font-size:20px; font-weight:800; margin-top:2px; }
+  .cur-box-score { font-size:12px; margin-top:4px; }
+
+  .footer-note { font-size:10px; color:#1e293b; text-align:center; margin-top:6px; }
+
+  /* Loading card */
+  .card-loading {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:14px 16px; margin-bottom:8px;
+    display:flex; align-items:center; gap:10px; opacity:0.5;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="title">CME BIAS TOOL</div>
+      <div class="badge" id="badge">
+        <div class="badge-dot"></div>
+        <span class="badge-text" id="badge-text">○ SIMULATION</span>
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="btn-refresh" onclick="handleRefresh()">↺ Refresh</button>
+  </div>
+
+  <!-- API Key panel -->
+  <div class="panel" id="api-panel">
+    <div class="panel-label">🔑 Clé <b style="color:#94a3b8">Twelve Data</b> — plan gratuit (chargement ~3 min)</div>
+    <div class="input-row">
+      <input type="text" id="api-key-input" placeholder="colle ta clé ici…" onkeydown="if(event.key==='Enter') handleActivate()">
+      <button class="btn btn-primary" id="btn-activate" onclick="handleActivate()">Activer</button>
+    </div>
+    <div class="error" id="api-error" style="display:none"></div>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-label">
+        <span id="progress-text">Chargement…</span>
+        <span id="progress-pct">0 / 21</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="progress-steps" id="step-dots"></div>
+      <div class="step-labels" id="step-labels"></div>
+    </div>
+  </div>
+
+  <!-- Live banner -->
+  <div class="live-banner" id="live-banner">
+    <span>● Données réelles · Forex spot · MM50 / 60 bougies</span>
+    <button class="btn-danger" onclick="disconnect()">Déconnecter</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard devises</button>
+    <button class="tab" id="tab-pair" onclick="switchTab('pair')">Analyser une paire</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="view-dashboard">
+    <div id="cards-container"></div>
+    <div class="footer-note">Clique sur une carte pour voir M30 · H1 · H4</div>
+  </div>
+
+  <!-- Pair -->
+  <div id="view-pair" style="display:none">
+    <div class="panel">
+      <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF</div>
+      <div class="input-row">
+        <input class="pair-input" id="pair-input" placeholder="GBPCAD" maxlength="6"
+          oninput="this.value=this.value.toUpperCase()"
+          onkeydown="if(event.key==='Enter') analyzePair()">
+        <button class="btn btn-primary" onclick="analyzePair()">Go</button>
+      </div>
+      <div class="error" id="pair-error" style="display:none"></div>
+      <div id="pair-result"></div>
+    </div>
+  </div>
+
+</div>
+<script>
+const CURRENCIES = {
+  EUR:{ label:'EUR', color:'#3b82f6', symbol:'EUR/USD', inverted:false },
+  GBP:{ label:'GBP', color:'#8b5cf6', symbol:'GBP/USD', inverted:false },
+  AUD:{ label:'AUD', color:'#10b981', symbol:'AUD/USD', inverted:false },
+  NZD:{ label:'NZD', color:'#06b6d4', symbol:'NZD/USD', inverted:false },
+  JPY:{ label:'JPY', color:'#f59e0b', symbol:'USD/JPY', inverted:true  },
+  CAD:{ label:'CAD', color:'#ef4444', symbol:'USD/CAD', inverted:true  },
+  CHF:{ label:'CHF', color:'#a78bfa', symbol:'USD/CHF', inverted:true  },
+};
+const TIMEFRAMES  = ['M30','H1','H4'];
+const TF_WEIGHTS  = { M30:0.35, H1:0.50, H4:0.15 };
+const TD_INTERVAL = { M30:'30min', H1:'1h', H4:'4h' };
+const TOTAL_REQS  = Object.keys(CURRENCIES).length * TIMEFRAMES.length; // 21
+const RATE_DELAY  = 8500; // ms between requests (safe under 8 req/min)
+
+let state = {
+  apiKey:'', isLive:false, loading:false,
+  data:{}, scores:{}, stepStatus:{},
+  lastUpdate:null, expanded:{}, tab:'dashboard',
+};
+
+// ── Math ────────────────────────────────────────────────────────────────────
+function calcMM50(c) {
+  if(c.length<50) return null;
+  return c.slice(-50).reduce((a,x)=>a+parseFloat(x.close),0)/50;
+}
+function calcScore(d) {
+  let s=0;
+  TIMEFRAMES.forEach(tf=>{ if(!d[tf]) return; s+=Math.max(-100,Math.min(100,d[tf].distPct*40))*TF_WEIGHTS[tf]; });
+  return parseFloat(s.toFixed(1));
+}
+function getBias(s) {
+  if(s>=50)  return{text:'Haussier +++',color:'#10b981',sign:'▲▲▲'};
+  if(s>=20)  return{text:'Haussier ++', color:'#34d399',sign:'▲▲' };
+  if(s>=0)   return{text:'Haussier +',  color:'#6ee7b7',sign:'▲'  };
+  if(s<=-50) return{text:'Baissier ---',color:'#ef4444',sign:'▼▼▼'};
+  if(s<=-20) return{text:'Baissier --', color:'#f87171',sign:'▼▼' };
+  return           {text:'Baissier -',  color:'#fca5a5',sign:'▼'  };
+}
+function getConf(d) {
+  const sum=TIMEFRAMES.map(tf=>(d[tf]?.distPct??0)>=0?1:-1).reduce((a,b)=>a+b,0);
+  if(Math.abs(sum)===3) return{label:'Confluent ✓',color:'#10b981'};
+  if(Math.abs(sum)===1) return{label:'Mixte ⚠',    color:'#f59e0b'};
+  return                     {label:'Divisé ✗',    color:'#ef4444'};
+}
+function makeSim() {
+  const nd={},ns={};
+  Object.keys(CURRENCIES).forEach(cur=>{
+    const td={};
+    TIMEFRAMES.forEach(tf=>{
+      const d=parseFloat(((Math.random()-0.45)*0.8).toFixed(4));
+      td[tf]={price:1.1,mm50:parseFloat((1.1*(1-d/100)).toFixed(5)),distPct:d};
+    });
+    nd[cur]=td; ns[cur]=calcScore(td);
+  });
+  state.data=nd; state.scores=ns;
+  state.lastUpdate=new Date().toLocaleTimeString('fr-FR');
+}
+
+// ── API ────────────────────────────────────────────────────────────────────
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+async function fetchTD(symbol, interval) {
+  const url=`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=${interval}&outputsize=60&apikey=${state.apiKey}&format=JSON`;
+  const res=await fetch(url);
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function loadLive() {
+  state.loading=true;
+  showErr('api-error','');
+  initProgress();
+
+  const curs=Object.keys(CURRENCIES);
+  const nd={},ns={};
+  let reqDone=0, failed=0, firstErr='';
+
+  for(const cur of curs) {
+    state.stepStatus[cur]='loading';
+    renderProgress(reqDone, cur);
+
+    const meta=CURRENCIES[cur];
+    const tfData={};
+    let curFailed=false;
+
+    for(const tf of TIMEFRAMES) {
+      try {
+        const json=await fetchTD(meta.symbol, TD_INTERVAL[tf]);
+        if(json.status==='error'||!json.values) throw new Error(json.message||`code ${json.code}`);
+        const candles=[...json.values].reverse();
+        const price=parseFloat(candles[candles.length-1].close);
+        const mm50=calcMM50(candles);
+        if(!mm50) throw new Error('Pas assez de données');
+        let dist=parseFloat((((price-mm50)/mm50)*100).toFixed(4));
+        if(meta.inverted) dist=-dist;
+        tfData[tf]={price:parseFloat(price.toFixed(5)),mm50:parseFloat(mm50.toFixed(5)),distPct:dist};
+      } catch(e) {
+        curFailed=true;
+        if(!firstErr) firstErr=`❌ ${cur}/${tf} : ${e.message}`;
+      }
+      reqDone++;
+      renderProgress(reqDone, cur);
+      // Rate limit: wait between requests (except after last)
+      if(reqDone < TOTAL_REQS) await sleep(RATE_DELAY);
+    }
+
+    if(curFailed) {
+      failed++;
+      state.stepStatus[cur]='error';
+    } else {
+      nd[cur]=tfData; ns[cur]=calcScore(tfData);
+      state.stepStatus[cur]='done';
+    }
+    renderProgress(reqDone, cur);
+    renderCards();
+  }
+
+  state.loading=false;
+  hideProgress();
+
+  if(failed===curs.length) {
+    showErr('api-error', firstErr||'❌ Toutes les devises ont échoué.');
+    state.isLive=false; makeSim();
+  } else {
+    if(firstErr) showErr('api-error', firstErr);
+    state.data=nd; state.scores=ns;
+    state.lastUpdate=new Date().toLocaleTimeString('fr-FR');
+    state.isLive=true;
+  }
+  updateBadge(); updatePanels(); updateRefBtn(); renderCards();
+}
+
+// ── Progress ───────────────────────────────────────────────────────────────
+function initProgress() {
+  const curs=Object.keys(CURRENCIES);
+  curs.forEach(c=>state.stepStatus[c]='pending');
+  const dotsEl=document.getElementById('step-dots');
+  const labsEl=document.getElementById('step-labels');
+  dotsEl.innerHTML=curs.map(c=>`<div class="step-dot" id="dot-${c}"></div>`).join('');
+  labsEl.innerHTML=curs.map(c=>`<div class="step-label">${c}</div>`).join('');
+  document.getElementById('progress-wrap').style.display='block';
+  document.getElementById('progress-fill').style.width='0%';
+  document.getElementById('progress-pct').textContent=`0 / ${TOTAL_REQS}`;
+}
+
+function renderProgress(done, currentCur) {
+  const pct=Math.round((done/TOTAL_REQS)*100);
+  document.getElementById('progress-fill').style.width=pct+'%';
+  document.getElementById('progress-pct').textContent=`${done} / ${TOTAL_REQS}`;
+  document.getElementById('progress-text').textContent=
+    done===TOTAL_REQS ? '✓ Chargement terminé' : `Chargement ${currentCur}… (${pct}%)`;
+
+  Object.keys(CURRENCIES).forEach(cur=>{
+    const dot=document.getElementById('dot-'+cur);
+    if(!dot) return;
+    const s=state.stepStatus[cur];
+    dot.className='step-dot'+(s==='done'?' done':s==='loading'?' loading':s==='error'?' error':'');
+  });
+}
+
+function hideProgress() {
+  setTimeout(()=>{ document.getElementById('progress-wrap').style.display='none'; }, 2000);
+}
+
+// ── Handlers ───────────────────────────────────────────────────────────────
+function handleActivate() {
+  const k=document.getElementById('api-key-input').value.replace(/\s/g,'').trim();
+  if(k.length<8){ showErr('api-error','Clé trop courte'); return; }
+  state.apiKey=k;
+  document.getElementById('btn-activate').disabled=true;
+  loadLive();
+}
+function handleRefresh() {
+  if(state.loading) return;
+  if(state.isLive&&state.apiKey) loadLive();
+  else { makeSim(); updateBadge(); renderCards(); }
+}
+function disconnect() {
+  state.isLive=false; state.apiKey='';
+  document.getElementById('api-key-input').value='';
+  document.getElementById('btn-activate').disabled=false;
+  makeSim(); updateBadge(); updatePanels(); renderCards();
+}
+function switchTab(t) {
+  state.tab=t;
+  document.getElementById('view-dashboard').style.display=t==='dashboard'?'block':'none';
+  document.getElementById('view-pair').style.display=t==='pair'?'block':'none';
+  document.getElementById('tab-dashboard').className='tab'+(t==='dashboard'?' active':'');
+  document.getElementById('tab-pair').className='tab'+(t==='pair'?' active':'');
+}
+function toggleCard(cur){ state.expanded[cur]=!state.expanded[cur]; renderCards(); }
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function scoreBarHTML(score) {
+  const pct=((score+100)/200)*100;
+  const left=score>=0?50:pct, w=Math.abs(score)/2;
+  const color=score>=0?'#10b981':'#ef4444';
+  return `<div class="score-bar"><div class="score-bar-mid"></div>
+    <div class="score-bar-fill" style="left:${left}%;width:${w}%;background:${color}"></div></div>`;
+}
+
+function renderCards() {
+  const container=document.getElementById('cards-container');
+  container.innerHTML=Object.keys(CURRENCIES).map(cur=>{
+    const meta=CURRENCIES[cur];
+    const d=state.data[cur];
+    const score=state.scores[cur]??0;
+    const status=state.stepStatus[cur];
+
+    if(!d) {
+      const isLoading=status==='loading'||state.loading;
+      return `<div class="card-loading">
+        <div class="cur-icon" style="background:${meta.color}20;color:${meta.color}">${cur}</div>
+        <span style="font-size:12px;color:var(--dim)">${isLoading?'Chargement…':'En attente'}</span>
+      </div>`;
+    }
+
+    const bias=getBias(score), conf=getConf(d), open=state.expanded[cur];
+    const tfDetail=open?`<div class="tf-grid">${TIMEFRAMES.map(tf=>{
+      const t=d[tf],up=t?.distPct>=0;
+      return `<div class="tf-card">
+        <div class="tf-label">${tf}</div>
+        <div class="tf-row">Prix <span class="tf-val">${t?.price}</span></div>
+        <div class="tf-row">MM50 <span class="tf-val">${t?.mm50}</span></div>
+        <div class="tf-dist" style="color:${up?'#10b981':'#ef4444'}">${up?'+':''}${t?.distPct}%</div>
+      </div>`;
+    }).join('')}</div>`:'';
+
+    return `<div class="card" onclick="toggleCard('${cur}')" style="border-color:${open?meta.color+'55':'#1e293b'}">
+      <div class="card-row">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="cur-icon" style="background:${meta.color}20;color:${meta.color}">${cur}</div>
+          <div>
+            <div class="cur-name">${meta.label}</div>
+            <div class="cur-sym">${meta.symbol}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="bias-text" style="color:${bias.color}">${bias.sign} ${bias.text}</div>
+          <div class="conf-row">
+            <span class="conf-label" style="color:${conf.color}">${conf.label}</span>
+            <span class="score-label">Score ${score>0?'+':''}${score}</span>
+          </div>
+        </div>
+      </div>
+      ${scoreBarHTML(score)}
+      ${tfDetail}
+    </div>`;
+  }).join('');
+}
+
+function analyzePair() {
+  const pair=document.getElementById('pair-input').value.toUpperCase().trim();
+  const errEl=document.getElementById('pair-error');
+  const resEl=document.getElementById('pair-result');
+  errEl.style.display='none'; resEl.innerHTML='';
+  if(pair.length!==6){showErr2(errEl,'Paire invalide · ex : EURJPY');return;}
+  const base=pair.slice(0,3),quote=pair.slice(3,6);
+  if(!CURRENCIES[base]){showErr2(errEl,`Non supporté : ${base}`);return;}
+  if(!CURRENCIES[quote]){showErr2(errEl,`Non supporté : ${quote}`);return;}
+  const sB=state.scores[base]??0,sQ=state.scores[quote]??0;
+  const diff=parseFloat((sB-sQ).toFixed(1));
+  let dir,str,color,arrow;
+  if(diff>30)      {dir='HAUSSIER';str='+++';color='#10b981';arrow='↑↑↑';}
+  else if(diff>15) {dir='HAUSSIER';str='++'; color='#34d399';arrow='↑↑'; }
+  else if(diff>=0) {dir='HAUSSIER';str='+';  color='#6ee7b7';arrow='↑';  }
+  else if(diff<-30){dir='BAISSIER';str='---';color='#ef4444';arrow='↓↓↓';}
+  else if(diff<-15){dir='BAISSIER';str='--'; color='#f87171';arrow='↓↓'; }
+  else             {dir='BAISSIER';str='-';  color='#fca5a5';arrow='↓';  }
+  const bB=getBias(sB),bQ=getBias(sQ),mB=CURRENCIES[base],mQ=CURRENCIES[quote];
+  resEl.innerHTML=`
+    <div class="pair-result" style="background:${color}11;border:1px solid ${color}44">
+      <div class="pair-arrow" style="color:${color}">${arrow} ${pair}</div>
+      <div class="pair-dir" style="color:${color}">${dir} ${str}</div>
+      <div class="pair-diff">Écart : ${diff>0?'+':''}${diff} pts</div>
+    </div>
+    <div class="cur-compare">
+      <div class="cur-box">
+        <div class="cur-box-sym">${mB.symbol}</div>
+        <div class="cur-box-name" style="color:${mB.color}">${base}</div>
+        <div class="cur-box-score" style="color:${bB.color}">${bB.sign} ${sB>0?'+':''}${sB}</div>
+        ${scoreBarHTML(sB)}
+      </div>
+      <div class="cur-box">
+        <div class="cur-box-sym">${mQ.symbol}</div>
+        <div class="cur-box-name" style="color:${mQ.color}">${quote}</div>
+        <div class="cur-box-score" style="color:${bQ.color}">${bQ.sign} ${sQ>0?'+':''}${sQ}</div>
+        ${scoreBarHTML(sQ)}
+      </div>
+    </div>`;
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function updateBadge() {
+  const badge=document.getElementById('badge');
+  const text=document.getElementById('badge-text');
+  if(state.isLive){badge.classList.add('live');text.textContent=`● LIVE · À jour ${state.lastUpdate}`;}
+  else{badge.classList.remove('live');text.textContent=`○ SIMULATION · ${state.lastUpdate??'—'}`;}
+}
+function updatePanels() {
+  document.getElementById('api-panel').style.display=state.isLive?'none':'block';
+  document.getElementById('live-banner').style.display=state.isLive?'flex':'none';
+}
+function updateRefBtn() {
+  document.getElementById('btn-refresh').disabled=state.loading;
+  document.getElementById('btn-refresh').textContent=state.loading?'↺ …':'↺ Refresh';
+}
+function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e.style.display=msg?'block':'none';}
+function showErr2(el,msg){el.textContent=msg;el.style.display='block';}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+makeSim(); updateBadge(); updatePanels(); renderCards();
+</script>
+</body>
+</html>
