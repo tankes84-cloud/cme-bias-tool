@@ -11,35 +11,38 @@
     --bg: #020617; --surface: #0f172a; --surface2: #1e293b;
     --border: #1e293b; --border2: #334155;
     --text: #f1f5f9; --muted: #64748b; --dim: #475569;
-    --green: #10b981; --green2: #34d399; --green3: #6ee7b7;
-    --red: #ef4444; --red2: #f87171; --red3: #fca5a5;
     --live: #22c55e; --blue: #3b82f6;
+    --red: #ef4444; --red2: #f87171; --red3: #fca5a5;
+    --green: #10b981; --green2: #34d399; --green3: #6ee7b7;
   }
   body { background:var(--bg); color:var(--text); font-family:'JetBrains Mono',monospace; min-height:100vh; padding:24px 16px 60px; }
   .wrap { max-width:680px; margin:0 auto; }
   .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
   .title { font-size:18px; font-weight:800; letter-spacing:3px; }
-  .badge { display:inline-flex; align-items:center; gap:7px; margin-top:8px; padding:4px 12px; border-radius:20px; border:1px solid var(--border2); background:var(--surface); transition:all 0.3s; }
+  .header-left { display:flex; flex-direction:column; gap:5px; }
+  .badge { display:inline-flex; align-items:center; gap:7px; padding:4px 12px; border-radius:20px; border:1px solid var(--border2); background:var(--surface); transition:all 0.3s; }
   .badge.live { background:#052e16; border-color:#16a34a; }
   .badge-dot { width:7px; height:7px; border-radius:50%; background:var(--dim); transition:all 0.3s; }
   .badge.live .badge-dot { background:var(--live); box-shadow:0 0 8px var(--live); animation:pulse 2s infinite; }
   .badge-text { font-size:10px; font-weight:700; color:var(--dim); }
   .badge.live .badge-text { color:var(--live); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .sessions-row { display:flex; gap:6px; flex-wrap:wrap; }
+  .session-pill { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:10px; font-weight:700; }
+  .session-on  { background:#052e16; border:1px solid #16a34a; color:#22c55e; }
+  .session-off { background:#0f172a; border:1px solid #1e293b; color:var(--dim); }
   .btn { font-family:inherit; font-size:12px; font-weight:700; border:none; border-radius:8px; cursor:pointer; }
   .btn-ghost { background:var(--surface2); border:1px solid var(--border2); color:var(--muted); padding:9px 16px; }
   .btn-ghost:disabled { opacity:0.5; cursor:default; }
   .btn-primary { background:var(--blue); color:#fff; padding:9px 18px; }
   .panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:14px; }
-  .panel-label { font-size:11px; color:var(--muted); margin-bottom:6px; }
+  .panel-label { font-size:11px; color:var(--muted); margin-bottom:8px; }
   .tabs { display:flex; gap:4px; background:var(--surface); border-radius:10px; padding:4px; margin-bottom:14px; }
   .tab { flex:1; padding:9px; border-radius:8px; border:none; background:transparent; color:var(--dim); font-family:inherit; font-size:12px; font-weight:400; cursor:pointer; transition:all 0.15s; }
   .tab.active { background:var(--surface2); color:var(--text); font-weight:700; }
   .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; cursor:pointer; margin-bottom:8px; transition:border-color 0.2s; }
   .card-row { display:flex; justify-content:space-between; align-items:center; }
   .cur-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; }
-  .cur-name { font-weight:700; font-size:14px; color:var(--text); }
-  .cur-sym { font-size:10px; color:var(--dim); margin-top:1px; }
   .bias-text { font-size:13px; font-weight:700; }
   .conf-row { display:flex; gap:6px; justify-content:flex-end; align-items:center; margin-top:2px; }
   .score-bar { position:relative; height:6px; background:var(--surface2); border-radius:4px; overflow:hidden; margin-top:7px; }
@@ -56,59 +59,49 @@
   .pair-result { border-radius:10px; padding:18px; text-align:center; margin-top:14px; }
   .cur-compare { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
   .cur-box { background:var(--surface2); border-radius:8px; padding:14px; text-align:center; }
-  .top3-grid { display:grid; grid-template-columns:1fr; gap:8px; }
-  .top3-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
-  .top3-rank { font-size:20px; font-weight:800; color:var(--muted); width:30px; }
+  .top3-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+  .top3-rank { font-size:22px; }
   .top3-pair { font-size:18px; font-weight:800; font-family:monospace; letter-spacing:2px; }
-  .top3-bias { font-size:13px; font-weight:700; text-align:right; }
   .top3-diff { font-size:10px; color:var(--dim); margin-top:2px; }
   .footer-note { font-size:10px; color:#1e293b; text-align:center; margin-top:6px; }
-  .update-info { font-size:10px; color:var(--muted); margin-top:4px; }
-  .loading-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:8px; opacity:0.5; display:flex; align-items:center; gap:10px; }
-  .error-box { background:#1a0a0a; border:1px solid #450a0a; border-radius:10px; padding:14px 16px; color:var(--red2); font-size:12px; margin-bottom:14px; }
-  .session-badge { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:20px; font-size:10px; font-weight:700; margin-top:6px; }
-  .session-active { background:#052e16; border:1px solid #16a34a; color:#22c55e; }
-  .session-inactive { background:#1a1a2e; border:1px solid #334155; color:var(--dim); }
+  .loading-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:8px; opacity:0.4; font-size:12px; color:var(--dim); }
+  .maj-info { font-size:10px; color:var(--muted); margin-top:2px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <!-- Header -->
   <div class="header">
-    <div>
+    <div class="header-left">
       <div class="title">CME BIAS TOOL</div>
       <div class="badge" id="badge">
         <div class="badge-dot"></div>
         <span class="badge-text" id="badge-text">○ Chargement…</span>
       </div>
-      <div id="session-badge"></div>
+      <div class="maj-info" id="maj-info"></div>
+      <div class="sessions-row" id="sessions-row"></div>
     </div>
     <button class="btn btn-ghost" id="btn-refresh" onclick="handleRefresh()">↺ Refresh</button>
   </div>
 
-  <!-- Tabs -->
   <div class="tabs">
     <button class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
     <button class="tab" id="tab-top3" onclick="switchTab('top3')">Top 3 Paires</button>
     <button class="tab" id="tab-pair" onclick="switchTab('pair')">Analyser</button>
   </div>
 
-  <!-- Dashboard -->
   <div id="view-dashboard">
     <div id="cards-container"></div>
-    <div class="footer-note">Clique sur une carte pour voir M30 · H1 · H2</div>
+    <div class="footer-note">Clique sur une carte · M30 · H1 · H2</div>
   </div>
 
-  <!-- Top 3 -->
   <div id="view-top3" style="display:none">
     <div class="panel">
-      <div class="panel-label">Meilleures opportunités du moment — écart de force le plus élevé</div>
-      <div class="top3-grid" id="top3-container"></div>
+      <div class="panel-label">Meilleures opportunités — écart de force le plus élevé (forex majeurs uniquement)</div>
+      <div id="top3-container"></div>
     </div>
   </div>
 
-  <!-- Pair analyzer -->
   <div id="view-pair" style="display:none">
     <div class="panel">
       <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF · XAU · BTC</div>
@@ -140,68 +133,73 @@ const CURRENCY_META = {
   BTC: { color:'#f97316', symbol:'BTC/USD' },
 };
 
-const VALID_PAIRS = Object.keys(CURRENCY_META);
+// Paires autorisées dans le Top 3 — pas de croisements XAU sauf XAUUSD, pas de BTC croisé
+const FOREX_ONLY = ['EUR','GBP','AUD','NZD','JPY','CAD','CHF'];
 
 let state = { data:[], scores:{}, expanded:{}, tab:'dashboard', lastUpdate:null, loading:false };
 
-// ── Session detection ─────────────────────────────────────────────────────
-function getSession() {
+// ── Sessions Paris (Europe/Paris) ─────────────────────────────────────────
+function getParisHour() {
   const now = new Date();
-  const utcH = now.getUTCHours();
-  if (utcH >= 7 && utcH < 16)  return { name:'Session Londres', active:true };
-  if (utcH >= 13 && utcH < 22) return { name:'Session New York', active:true };
-  return { name:'Hors session', active:false };
+  const parisTime = new Date(now.toLocaleString('en-US', { timeZone:'Europe/Paris' }));
+  return parisTime.getHours() + parisTime.getMinutes() / 60;
 }
 
-function updateSessionBadge() {
-  const s = getSession();
-  const el = document.getElementById('session-badge');
-  el.innerHTML = `<div class="session-badge ${s.active?'session-active':'session-inactive'}">
-    ${s.active?'●':'○'} ${s.name}
-  </div>`;
+function getSessions() {
+  const h = getParisHour();
+  const sessions = [];
+  // Tokyo : 01h00 → 10h00 Paris (heure été) / 02h00 → 11h00 (heure hiver) — approx 01h-10h
+  if (h >= 1 && h < 10)   sessions.push('🇯🇵 Tokyo');
+  // Londres : 09h00 → 18h00 Paris
+  if (h >= 9 && h < 18)   sessions.push('🇬🇧 Londres');
+  // New York : 14h00 → 23h00 Paris
+  if (h >= 14 && h < 23)  sessions.push('🇺🇸 New York');
+  return sessions;
 }
 
-// ── Fetch from Supabase ───────────────────────────────────────────────────
-async function fetchFromSupabase() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/bias_data?select=*`, {
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`
-    }
-  });
-  if (!res.ok) throw new Error(`Supabase error: ${res.status}`);
-  return res.json();
-}
-
-// ── Trigger backend refresh ───────────────────────────────────────────────
-async function triggerRefresh() {
-  try {
-    await fetch('/api/fetch-bias', { method: 'GET' });
-  } catch(e) {
-    console.log('Refresh triggered');
+function updateSessions() {
+  const sessions = getSessions();
+  const el = document.getElementById('sessions-row');
+  if (sessions.length === 0) {
+    el.innerHTML = `<div class="session-pill session-off">○ Hors session</div>`;
+  } else {
+    el.innerHTML = sessions.map(s =>
+      `<div class="session-pill session-on">● ${s}</div>`
+    ).join('');
   }
 }
 
-// ── Load data ─────────────────────────────────────────────────────────────
+// ── Supabase fetch ────────────────────────────────────────────────────────
+async function fetchFromSupabase() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bias_data?select=*&order=currency.asc`, {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}`);
+  return res.json();
+}
+
 async function loadData() {
-  state.loading = true;
-  updateRefBtn();
+  state.loading = true; updateRefBtn();
   try {
     const rows = await fetchFromSupabase();
-    if (!rows || rows.length === 0) throw new Error('Pas encore de données');
+    if (!rows || !rows.length) throw new Error('Pas de données');
     state.data = rows;
     state.scores = {};
     rows.forEach(r => state.scores[r.currency] = r.score);
-    state.lastUpdate = rows[0]?.updated_at 
-      ? new Date(rows[0].updated_at).toLocaleTimeString('fr-FR')
-      : new Date().toLocaleTimeString('fr-FR');
+
+    // Heure de MAJ réelle depuis Supabase updated_at
+    const dates = rows.map(r => new Date(r.updated_at)).filter(d => !isNaN(d));
+    const latest = new Date(Math.max(...dates));
+    state.lastUpdate = latest.toLocaleTimeString('fr-FR', {
+      timeZone: 'Europe/Paris', hour:'2-digit', minute:'2-digit'
+    });
+
     updateBadge(true);
   } catch(e) {
     console.error(e);
     updateBadge(false);
   }
-  state.loading = false;
-  updateRefBtn();
+  state.loading = false; updateRefBtn();
   renderAll();
 }
 
@@ -238,9 +236,12 @@ function renderCards() {
     const score = row.score ?? 0;
     const bias = getBias(score);
     const open = state.expanded[cur];
+    const confColor = row.confluence==='Confluent'?'#10b981':row.confluence==='Mixte'?'#f59e0b':'#ef4444';
+    const confLabel = row.confluence==='Confluent'?'Confluent ✓':row.confluence==='Mixte'?'Mixte ⚠':'Divisé ✗';
+
     const tfDetail = open ? `<div class="tf-grid">
       ${['M30','H1','H2'].map(tf => {
-        const key = tf === 'M30' ? 'tf_m30' : tf === 'H1' ? 'tf_h1' : 'tf_h2';
+        const key = tf==='M30'?'tf_m30':tf==='H1'?'tf_h1':'tf_h2';
         const t = row[key];
         const up = t?.distPct >= 0;
         return `<div class="tf-card">
@@ -252,22 +253,20 @@ function renderCards() {
       }).join('')}
     </div>` : '';
 
-    return `<div class="card" onclick="toggleCard('${cur}')" 
+    return `<div class="card" onclick="toggleCard('${cur}')"
       style="border-color:${open ? meta.color+'55' : '#1e293b'}">
       <div class="card-row">
         <div style="display:flex;align-items:center;gap:10px">
           <div class="cur-icon" style="background:${meta.color}20;color:${meta.color}">${cur}</div>
           <div>
-            <div class="cur-name">${cur}</div>
-            <div class="cur-sym">${meta.symbol}</div>
+            <div style="font-weight:700;font-size:14px;color:var(--text)">${cur}</div>
+            <div style="font-size:10px;color:var(--dim)">${meta.symbol}</div>
           </div>
         </div>
         <div style="text-align:right">
           <div class="bias-text" style="color:${bias.color}">${bias.sign} ${bias.text}</div>
           <div class="conf-row">
-            <span style="font-size:10px;color:${row.confluence==='Confluent'?'#10b981':row.confluence==='Mixte'?'#f59e0b':'#ef4444'}">
-              ${row.confluence==='Confluent'?'Confluent ✓':row.confluence==='Mixte'?'Mixte ⚠':'Divisé ✗'}
-            </span>
+            <span style="font-size:10px;color:${confColor}">${confLabel}</span>
             <span style="font-size:10px;color:var(--dim)">Score ${score>0?'+':''}${score}</span>
           </div>
         </div>
@@ -278,43 +277,50 @@ function renderCards() {
   }).join('');
 }
 
-// ── Render Top 3 ──────────────────────────────────────────────────────────
+// ── Render Top 3 (forex majeurs uniquement, pas de XAU croisé) ───────────
 function renderTop3() {
   const container = document.getElementById('top3-container');
-  if (!state.data.length) { container.innerHTML = '<div style="color:var(--muted);font-size:12px">Données non disponibles</div>'; return; }
+  if (!state.data.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:12px">Données non disponibles</div>';
+    return;
+  }
 
   const scores = state.scores;
-  const curs = Object.keys(scores);
   const pairs = [];
 
-  for (let i = 0; i < curs.length; i++) {
-    for (let j = i+1; j < curs.length; j++) {
-      const a = curs[i], b = curs[j];
+  // Uniquement les croisements entre devises forex majeures
+  for (let i = 0; i < FOREX_ONLY.length; i++) {
+    for (let j = i+1; j < FOREX_ONLY.length; j++) {
+      const a = FOREX_ONLY[i], b = FOREX_ONLY[j];
+      if (scores[a] === undefined || scores[b] === undefined) continue;
       const diff = parseFloat((scores[a] - scores[b]).toFixed(1));
       const absDiff = Math.abs(diff);
       const base = diff > 0 ? a : b;
       const quote = diff > 0 ? b : a;
-      pairs.push({ pair:`${base}${quote}`, base, quote, diff: absDiff, rawDiff: diff });
+      pairs.push({ pair:`${base}${quote}`, base, quote, diff:absDiff });
     }
   }
 
   pairs.sort((a,b) => b.diff - a.diff);
   const top3 = pairs.slice(0, 3);
-
   const medals = ['🥇','🥈','🥉'];
+
   container.innerHTML = top3.map((p, i) => {
-    const score = p.rawDiff > 0 ? p.diff : -p.diff;
     let dir, color, arrow;
     if (p.diff > 30)      { dir='HAUSSIER +++'; color='#10b981'; arrow='↑↑↑'; }
     else if (p.diff > 15) { dir='HAUSSIER ++';  color='#34d399'; arrow='↑↑';  }
     else                  { dir='HAUSSIER +';   color='#6ee7b7'; arrow='↑';   }
+    const mB = CURRENCY_META[p.base], mQ = CURRENCY_META[p.quote];
     return `<div class="top3-card">
       <div class="top3-rank">${medals[i]}</div>
-      <div style="flex:1;margin-left:10px">
+      <div style="flex:1">
         <div class="top3-pair" style="color:${color}">${arrow} ${p.pair}</div>
-        <div class="top3-diff">Écart : ${p.diff} pts</div>
+        <div class="top3-diff">
+          <span style="color:${mB.color}">${p.base}</span> vs 
+          <span style="color:${mQ.color}">${p.quote}</span> · Écart ${p.diff} pts
+        </div>
       </div>
-      <div class="top3-bias" style="color:${color}">${dir}</div>
+      <div style="font-size:12px;font-weight:700;color:${color};text-align:right">${dir}</div>
     </div>`;
   }).join('');
 }
@@ -368,28 +374,31 @@ function analyzePair() {
     </div>`;
 }
 
-// ── UI helpers ────────────────────────────────────────────────────────────
+// ── UI ────────────────────────────────────────────────────────────────────
 function renderAll() { renderCards(); renderTop3(); }
-
-function toggleCard(cur) { state.expanded[cur] = !state.expanded[cur]; renderCards(); }
+function toggleCard(cur) { state.expanded[cur]=!state.expanded[cur]; renderCards(); }
 
 function switchTab(t) {
   state.tab = t;
   ['dashboard','top3','pair'].forEach(id => {
-    document.getElementById(`view-${id}`).style.display = t===id ? 'block' : 'none';
-    document.getElementById(`tab-${id}`).className = 'tab' + (t===id ? ' active' : '');
+    document.getElementById(`view-${id}`).style.display = t===id?'block':'none';
+    document.getElementById(`tab-${id}`).className = 'tab'+(t===id?' active':'');
   });
 }
 
 function updateBadge(isLive) {
   const badge = document.getElementById('badge');
-  const text = document.getElementById('badge-text');
+  const text  = document.getElementById('badge-text');
+  const maj   = document.getElementById('maj-info');
   if (isLive) {
     badge.classList.add('live');
-    text.textContent = `● LIVE · À jour ${state.lastUpdate}`;
+    text.textContent = `● LIVE`;
+    maj.textContent  = `Dernière MAJ : ${state.lastUpdate} (heure Paris)`;
+    maj.style.color  = 'var(--muted)';
   } else {
     badge.classList.remove('live');
     text.textContent = `○ Erreur de chargement`;
+    maj.textContent  = '';
   }
 }
 
@@ -404,12 +413,12 @@ async function handleRefresh() {
   await loadData();
 }
 
-// ── Auto refresh toutes les 30min ─────────────────────────────────────────
-setInterval(() => { loadData(); }, 30 * 60 * 1000);
+// ── Auto refresh Supabase toutes les 30min ────────────────────────────────
+setInterval(() => loadData(), 30 * 60 * 1000);
 
 // ── Init ──────────────────────────────────────────────────────────────────
-updateSessionBadge();
-setInterval(updateSessionBadge, 60000);
+updateSessions();
+setInterval(updateSessions, 60000);
 loadData();
 </script>
 </body>
