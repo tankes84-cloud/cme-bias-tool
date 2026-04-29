@@ -19,6 +19,7 @@ const CURRENCIES = {
 const TIMEFRAMES = ['M30','H1','H2'];
 const TD_INTERVAL = { M30:'30min', H1:'1h', H2:'2h' };
 const TF_WEIGHTS  = { M30:0.35, H1:0.50, H2:0.15 };
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function calcMM50(candles) {
@@ -74,18 +75,22 @@ async function upsertCurrency(row) {
 }
 
 export default async function handler(req, res) {
+  // Récupère la devise depuis le query param ?cur=EUR
+  const cur = req.query?.cur || null;
   const results = [];
-  let reqCount = 0;
 
-  for (const [cur, meta] of Object.entries(CURRENCIES)) {
+  const cursToProcess = cur ? [cur] : Object.keys(CURRENCIES);
+
+  for (const currency of cursToProcess) {
+    const meta = CURRENCIES[currency];
+    if (!meta) continue;
+
     try {
       const tfData = {};
       for (const tf of TIMEFRAMES) {
-        if (reqCount > 0 && reqCount % 7 === 0) {
-          await sleep(62000);
-        }
+        // 8 secondes entre chaque requête = safe sous 8 req/min
+        await sleep(8000);
         const candles = await fetchTF(meta.symbol, TD_INTERVAL[tf]);
-        reqCount++;
         const price = parseFloat(candles[candles.length-1].close);
         const mm50 = calcMM50(candles);
         if (!mm50) throw new Error('Pas assez de données');
@@ -96,7 +101,7 @@ export default async function handler(req, res) {
 
       const score = calcScore(tfData);
       const row = {
-        currency: cur,
+        currency,
         score,
         tf_m30: tfData['M30'],
         tf_h1:  tfData['H1'],
@@ -108,11 +113,16 @@ export default async function handler(req, res) {
       };
 
       await upsertCurrency(row);
-      results.push(cur);
+      results.push(currency);
+
     } catch(e) {
-      results.push(`ERROR_${cur}: ${e.message}`);
+      results.push(`ERROR_${currency}: ${e.message}`);
     }
   }
 
-  res.json({ ok: true, updated: results.filter(r => !r.startsWith('ERROR')).length, currencies: results });
+  res.json({ 
+    ok: true, 
+    updated: results.filter(r => !r.startsWith('ERROR')).length, 
+    currencies: results 
+  });
 }
