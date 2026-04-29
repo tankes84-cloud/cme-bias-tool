@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/fetch-bias",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}
