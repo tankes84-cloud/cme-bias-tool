@@ -1,8 +1,8 @@
 export const maxDuration = 300;
 
-const TWELVE_KEY = '130471e06a0344df92b15178b6600222';
-const SUPABASE_URL = 'https://itvyvfmpwtioaiifzazn.supabase.co';
-const SUPABASE_SECRET = 'sb_secret_-IiHKU1Ja216MQJZ2S1jNA_4kkqygSX';
+const TWELVE_KEY = process.env.TWELVE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SECRET = process.env.SUPABASE_SECRET;
 
 const CURRENCIES = {
   EUR: { symbol: 'EUR/USD', inverted: false },
