@@ -1,3 +1,4 @@
+// Tiingo v2
 export const maxDuration = 300;
 
 const TIINGO_KEY  = process.env.TIINGO_KEY;
