@@ -66,6 +66,7 @@
   .footer-note { font-size:10px; color:#1e293b; text-align:center; margin-top:6px; }
   .loading-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:8px; opacity:0.4; font-size:12px; color:var(--dim); }
   .maj-info { font-size:10px; color:var(--muted); margin-top:2px; }
+  .usd-note { font-size:9px; color:var(--dim); margin-top:2px; }
 </style>
 </head>
 <body>
@@ -104,7 +105,7 @@
 
   <div id="view-pair" style="display:none">
     <div class="panel">
-      <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF · XAU · BTC</div>
+      <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF · USD · XAU · BTC</div>
       <div style="display:flex;gap:8px">
         <input class="pair-input" id="pair-input" placeholder="GBPJPY" maxlength="6"
           oninput="this.value=this.value.toUpperCase()"
@@ -129,12 +130,11 @@ const CURRENCY_META = {
   JPY: { color:'#f59e0b', symbol:'USD/JPY' },
   CAD: { color:'#ef4444', symbol:'USD/CAD' },
   CHF: { color:'#a78bfa', symbol:'USD/CHF' },
+  USD: { color:'#f97316', symbol:'DXY'     },
   XAU: { color:'#fbbf24', symbol:'XAU/USD' },
   BTC: { color:'#64748b', symbol:'BTC/USD' },
 };
 
-// Vraies paires FTMO dans leur sens réel
-// base/quote = sens standard de la paire sur le marché
 const REAL_PAIRS = [
   { base:'EUR', quote:'USD' },
   { base:'GBP', quote:'USD' },
@@ -167,14 +167,8 @@ const REAL_PAIRS = [
   { base:'XAU', quote:'USD' },
 ];
 
-// Pour les paires USD/XXX, USD est la base → si score USD > score XXX = paire monte
-// Pour les paires XXX/USD, XXX est la base → si score XXX > score USD = paire monte
-// Mais on n'a pas USD dans les scores, donc on ignore les paires USD/* pour l'instant
-// On les garde dans la liste mais elles seront filtrées si USD n'existe pas dans scores
-
 let state = { data:[], scores:{}, expanded:{}, tab:'dashboard', lastUpdate:null, loading:false };
 
-// ── Sessions Paris ────────────────────────────────────────────────────────
 function getParisHour() {
   const now = new Date();
   const parisTime = new Date(now.toLocaleString('en-US', { timeZone:'Europe/Paris' }));
@@ -200,7 +194,6 @@ function updateSessions() {
   }
 }
 
-// ── Supabase ──────────────────────────────────────────────────────────────
 async function fetchFromSupabase() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/bias_data?select=*&order=score.desc`, {
     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
@@ -231,7 +224,6 @@ async function loadData() {
   renderAll();
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────
 function getBias(score) {
   if (score >= 50)  return { text:'Haussier +++', color:'#10b981', sign:'▲▲▲' };
   if (score >= 20)  return { text:'Haussier ++',  color:'#34d399', sign:'▲▲'  };
@@ -250,7 +242,6 @@ function scoreBarHTML(score) {
     <div class="score-bar-fill" style="left:${left}%;width:${w}%;background:${color}"></div></div>`;
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────
 function renderCards() {
   const container = document.getElementById('cards-container');
   if (!state.data.length) {
@@ -266,7 +257,10 @@ function renderCards() {
     const open = state.expanded[cur];
     const confColor = row.confluence==='Confluent'?'#10b981':row.confluence==='Mixte'?'#f59e0b':'#ef4444';
     const confLabel = row.confluence==='Confluent'?'Confluent ✓':row.confluence==='Mixte'?'Mixte ⚠':'Divisé ✗';
-    const tfDetail = open ? `<div class="tf-grid">
+    const isUSD = cur === 'USD';
+
+    // Pour USD : pas de détail TF car calculé via formule DXY
+    const tfDetail = open && !isUSD ? `<div class="tf-grid">
       ${['M30','H1','H2'].map(tf => {
         const key = tf==='M30'?'tf_m30':tf==='H1'?'tf_h1':'tf_h2';
         const t = row[key];
@@ -278,7 +272,8 @@ function renderCards() {
           <div class="tf-dist" style="color:${up?'#10b981':'#ef4444'}">${up?'+':''}${t?.distPct ?? 0}%</div>
         </div>`;
       }).join('')}
-    </div>` : '';
+    </div>` : (open && isUSD ? `<div style="padding:10px 0;font-size:10px;color:var(--dim)">Score USD calculé via formule DXY pondérée (EUR 60.9% · JPY 14.4% · GBP 12.6% · CAD 9.6% · CHF 3.6%)</div>` : '');
+
     return `<div class="card" onclick="toggleCard('${cur}')"
       style="border-color:${open ? meta.color+'55' : '#1e293b'}">
       <div class="card-row">
@@ -303,7 +298,6 @@ function renderCards() {
   }).join('');
 }
 
-// ── Top 3 — paires réelles FTMO, sens préservé, direction correcte ────────
 function renderTop3() {
   const container = document.getElementById('top3-container');
   if (!state.data.length) {
@@ -317,25 +311,16 @@ function renderTop3() {
   for (const p of REAL_PAIRS) {
     const sBase  = scores[p.base];
     const sQuote = scores[p.quote];
-    // Si une des deux devises n'est pas dans les scores, on skip
     if (sBase === undefined || sQuote === undefined) continue;
-
-    // diff = score base - score quote
-    // diff > 0 → base plus forte → paire HAUSSIERE (ex: EURUSD monte si EUR fort)
-    // diff < 0 → quote plus forte → paire BAISSIERE (ex: EURUSD baisse si USD fort)
-    // Attention : pour USD/JPY, USD est base → si USD fort, diff > 0 → paire monte
     const diff = parseFloat((sBase - sQuote).toFixed(1));
     const absDiff = Math.abs(diff);
     const haussier = diff > 0;
-
     pairs.push({
-      name:     `${p.base}${p.quote}`, // nom réel de la paire, jamais inversé
-      base:     p.base,
-      quote:    p.quote,
-      diff:     absDiff,
-      haussier,
-      fort:     haussier ? p.base  : p.quote,
-      faible:   haussier ? p.quote : p.base,
+      name: `${p.base}${p.quote}`,
+      base: p.base, quote: p.quote,
+      diff: absDiff, haussier,
+      fort:   haussier ? p.base  : p.quote,
+      faible: haussier ? p.quote : p.base,
     });
   }
 
@@ -368,7 +353,6 @@ function renderTop3() {
   }).join('');
 }
 
-// ── Pair analyzer ─────────────────────────────────────────────────────────
 function analyzePair() {
   const pair = document.getElementById('pair-input').value.toUpperCase().trim();
   const errEl = document.getElementById('pair-error');
@@ -412,7 +396,6 @@ function analyzePair() {
     </div>`;
 }
 
-// ── UI ────────────────────────────────────────────────────────────────────
 function renderAll() { renderCards(); renderTop3(); }
 function toggleCard(cur) { state.expanded[cur]=!state.expanded[cur]; renderCards(); }
 
