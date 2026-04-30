@@ -1,33 +1,59 @@
 export const maxDuration = 300;
 
-const TWELVE_KEY = process.env.TWELVE_KEY;
-const SUPABASE_URL = process.env.SUPABASE_URL;
+const TIINGO_KEY  = process.env.TIINGO_KEY;
+const SUPABASE_URL    = process.env.SUPABASE_URL;
 const SUPABASE_SECRET = process.env.SUPABASE_SECRET;
 
+// Tiingo forex symbols (lowercase)
+// inverted: true = USD is base in the pair, so we flip distPct to get currency strength
 const CURRENCIES = {
-  EUR: { symbol: 'EUR/USD', inverted: false },
-  GBP: { symbol: 'GBP/USD', inverted: false },
-  AUD: { symbol: 'AUD/USD', inverted: false },
-  NZD: { symbol: 'NZD/USD', inverted: false },
-  JPY: { symbol: 'USD/JPY', inverted: true  },
-  CAD: { symbol: 'USD/CAD', inverted: true  },
-  CHF: { symbol: 'USD/CHF', inverted: true  },
-  XAU: { symbol: 'XAU/USD', inverted: false },
-  BTC: { symbol: 'BTC/USD', inverted: false },
+  EUR: { symbol: 'eurusd', inverted: false },
+  GBP: { symbol: 'gbpusd', inverted: false },
+  AUD: { symbol: 'audusd', inverted: false },
+  NZD: { symbol: 'nzdusd', inverted: false },
+  JPY: { symbol: 'usdjpy', inverted: true  },
+  CAD: { symbol: 'usdcad', inverted: true  },
+  CHF: { symbol: 'usdchf', inverted: true  },
+  XAU: { symbol: 'xauusd', inverted: false },
+  BTC: { symbol: 'btcusd', inverted: false },
 };
 
-const TIMEFRAMES = ['M30','H1','H2'];
-const TD_INTERVAL = { M30:'30min', H1:'1h', H2:'2h' };
-const TF_WEIGHTS  = { M30:0.35, H1:0.50, H2:0.15 };
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const TIMEFRAMES  = ['M30', 'H1', 'H2'];
+const TF_FREQ     = { M30: '30min', H1: '1hour', H2: '2hour' };
+const TF_WEIGHTS  = { M30: 0.35, H1: 0.50, H2: 0.15 };
 
-// Yahoo Finance intervals for DXY
-const YF_INTERVAL = { M30:'30m', H1:'1h', H2:'1h' }; // H2 not available on Yahoo, use H1 x2
-const YF_RANGE    = { M30:'5d',  H1:'1mo', H2:'1mo' };
+// DXY weights (official ICE formula, SEK excluded, renormalized)
+const DXY_WEIGHTS = {
+  EUR: -0.609, // EUR/USD inverted → USD strong when EUR weak
+  JPY: -0.144,
+  GBP: -0.126,
+  CAD: -0.096,
+  CHF: -0.036, // SEK excluded, weights renormalized to sum ~1
+};
+
+function getStartDate() {
+  // Go back 5 days to get enough candles for MM50 on all TFs
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString().split('T')[0];
+}
+
+async function fetchTiingo(symbol, freq) {
+  const startDate = getStartDate();
+  const url = `https://api.tiingo.com/tiingo/fx/${symbol}/prices?startDate=${startDate}&resampleFreq=${freq}&token=${TIINGO_KEY}`;
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!res.ok) throw new Error(`Tiingo ${symbol} ${freq}: HTTP ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data) || data.length === 0) throw new Error(`Tiingo ${symbol} ${freq}: no data`);
+  return data;
+}
 
 function calcMM50(candles) {
   if (candles.length < 50) return null;
-  return candles.slice(-50).reduce((a, c) => a + parseFloat(c.close), 0) / 50;
+  const last50 = candles.slice(-50);
+  return last50.reduce((a, c) => a + c.close, 0) / 50;
 }
 
 function calcScore(tfData) {
@@ -55,58 +81,37 @@ function getConfluence(tfData) {
   return 'Divisé';
 }
 
-async function fetchTD(symbol, interval) {
-  const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=${interval}&outputsize=60&apikey=${TWELVE_KEY}&format=JSON`;
-  const res = await fetch(url);
-  const json = await res.json();
-  if (!json || json.status === 'error' || !json.values) throw new Error(json?.message || 'API error');
-  return [...json.values].reverse();
-}
-
-// Fetch DXY from Yahoo Finance (no API key needed)
-async function fetchDXY(tf) {
-  const interval = YF_INTERVAL[tf];
-  const range = YF_RANGE[tf];
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB?interval=${interval}&range=${range}`;
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0' }
-  });
-  const json = await res.json();
-  const result = json?.chart?.result?.[0];
-  if (!result) throw new Error('Yahoo Finance DXY error');
-  
-  const timestamps = result.timestamp;
-  const closes = result.indicators.quote[0].close;
-  
-  const candles = timestamps.map((t, i) => ({
-    close: closes[i]
-  })).filter(c => c.close !== null && c.close !== undefined);
-
-  // For H2, we need to resample H1 data into H2
-  if (tf === 'H2') {
-    const resampled = [];
-    for (let i = 1; i < candles.length; i += 2) {
-      resampled.push(candles[i]);
-    }
-    return resampled;
-  }
-
-  return candles;
-}
-
-async function fetchUSD() {
+async function fetchCurrencyData(cur) {
+  const meta = CURRENCIES[cur];
   const tfData = {};
   for (const tf of TIMEFRAMES) {
-    const candles = await fetchDXY(tf);
-    const price = parseFloat(candles[candles.length - 1].close.toFixed(5));
+    const candles = await fetchTiingo(meta.symbol, TF_FREQ[tf]);
+    const price = candles[candles.length - 1].close;
     const mm50 = calcMM50(candles);
-    if (!mm50) throw new Error('DXY: pas assez de données');
-    // DXY up = USD strong, so no inversion needed
-    const distPct = parseFloat((((price - mm50) / mm50) * 100).toFixed(4));
-    tfData[tf] = { price, mm50: parseFloat(mm50.toFixed(5)), distPct };
-    await sleep(500);
+    if (!mm50) throw new Error(`${cur} ${tf}: pas assez de données (${candles.length} bougies)`);
+    let distPct = parseFloat((((price - mm50) / mm50) * 100).toFixed(4));
+    if (meta.inverted) distPct = -distPct;
+    tfData[tf] = {
+      price:   parseFloat(price.toFixed(5)),
+      mm50:    parseFloat(mm50.toFixed(5)),
+      distPct,
+    };
   }
   return tfData;
+}
+
+// Calculate USD score from DXY formula using already-fetched scores
+function calcUSDFromScores(scores) {
+  let usdScore = 0;
+  let totalWeight = 0;
+  for (const [cur, weight] of Object.entries(DXY_WEIGHTS)) {
+    if (scores[cur] === undefined) continue;
+    // USD is strong when paired currencies are weak → invert their scores
+    usdScore += (-scores[cur]) * Math.abs(weight);
+    totalWeight += Math.abs(weight);
+  }
+  if (totalWeight === 0) return null;
+  return parseFloat((usdScore / totalWeight).toFixed(1));
 }
 
 async function upsertCurrency(row) {
@@ -116,79 +121,79 @@ async function upsertCurrency(row) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_SECRET}`,
       'apikey': SUPABASE_SECRET,
-      'Prefer': 'resolution=merge-duplicates'
+      'Prefer': 'resolution=merge-duplicates',
     },
-    body: JSON.stringify(row)
+    body: JSON.stringify(row),
   });
-  return res.ok;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase upsert error: ${text}`);
+  }
+  return true;
 }
 
 export default async function handler(req, res) {
   const results = [];
-  let reqCount = 0;
+  const scores  = {};
 
-  // Fetch regular currencies via Twelve Data
-  for (const [cur, meta] of Object.entries(CURRENCIES)) {
+  // Fetch all currencies in parallel (Tiingo has no strict rate limit)
+  const fetchPromises = Object.keys(CURRENCIES).map(async (cur) => {
     try {
-      const tfData = {};
-      for (const tf of TIMEFRAMES) {
-        if (reqCount > 0 && reqCount % 7 === 0) {
-          await sleep(62000);
-        }
-        const candles = await fetchTD(meta.symbol, TD_INTERVAL[tf]);
-        reqCount++;
-        const price = parseFloat(candles[candles.length-1].close);
-        const mm50 = calcMM50(candles);
-        if (!mm50) throw new Error('Pas assez de données');
-        let distPct = parseFloat((((price-mm50)/mm50)*100).toFixed(4));
-        if (meta.inverted) distPct = -distPct;
-        tfData[tf] = { price: parseFloat(price.toFixed(5)), mm50: parseFloat(mm50.toFixed(5)), distPct };
-      }
+      const tfData = await fetchCurrencyData(cur);
+      const score  = calcScore(tfData);
+      scores[cur]  = score;
 
-      const score = calcScore(tfData);
       const row = {
-        currency: cur,
+        currency:   cur,
         score,
-        tf_m30: tfData['M30'],
-        tf_h1:  tfData['H1'],
-        tf_h2:  tfData['H2'],
-        bias: getBias(score),
+        tf_m30:     tfData['M30'],
+        tf_h1:      tfData['H1'],
+        tf_h2:      tfData['H2'],
+        bias:       getBias(score),
         confluence: getConfluence(tfData),
-        momentum: '→',
-        updated_at: new Date().toISOString()
+        momentum:   '→',
+        updated_at: new Date().toISOString(),
       };
 
       await upsertCurrency(row);
       results.push(cur);
-    } catch(e) {
+    } catch (e) {
       results.push(`ERROR_${cur}: ${e.message}`);
     }
-  }
+  });
 
-  // Fetch USD via Yahoo Finance DXY
+  await Promise.all(fetchPromises);
+
+  // Calculate USD from DXY formula
   try {
-    const tfData = await fetchUSD();
-    const score = calcScore(tfData);
-    const row = {
-      currency: 'USD',
-      score,
-      tf_m30: tfData['M30'],
-      tf_h1:  tfData['H1'],
-      tf_h2:  tfData['H2'],
-      bias: getBias(score),
-      confluence: getConfluence(tfData),
-      momentum: '→',
-      updated_at: new Date().toISOString()
+    const usdScore = calcUSDFromScores(scores);
+    if (usdScore === null) throw new Error('Pas assez de devises pour calculer USD');
+
+    const usdBias = getBias(usdScore);
+    // USD confluence based on sign consistency — simplified
+    const usdConfluence = 'Confluent';
+
+    const usdRow = {
+      currency:   'USD',
+      score:      usdScore,
+      tf_m30:     null,
+      tf_h1:      null,
+      tf_h2:      null,
+      bias:       usdBias,
+      confluence: usdConfluence,
+      momentum:   '→',
+      updated_at: new Date().toISOString(),
     };
-    await upsertCurrency(row);
+
+    await upsertCurrency(usdRow);
     results.push('USD');
-  } catch(e) {
+  } catch (e) {
     results.push(`ERROR_USD: ${e.message}`);
   }
 
   res.json({
-    ok: true,
-    updated: results.filter(r => !r.startsWith('ERROR')).length,
-    currencies: results
+    ok:         true,
+    updated:    results.filter(r => !r.startsWith('ERROR')).length,
+    currencies: results,
   });
 }
