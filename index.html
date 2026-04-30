@@ -97,14 +97,14 @@
 
   <div id="view-top3" style="display:none">
     <div class="panel">
-      <div class="panel-label">Top 3 opportunités — plus grand écart de force · paires FTMO uniquement</div>
+      <div class="panel-label">Top 3 opportunités · plus grand écart de force · paires FTMO uniquement</div>
       <div id="top3-container"></div>
     </div>
   </div>
 
   <div id="view-pair" style="display:none">
     <div class="panel">
-      <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF · USD · XAU · BTC</div>
+      <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF · XAU · BTC</div>
       <div style="display:flex;gap:8px">
         <input class="pair-input" id="pair-input" placeholder="GBPJPY" maxlength="6"
           oninput="this.value=this.value.toUpperCase()"
@@ -129,24 +129,48 @@ const CURRENCY_META = {
   JPY: { color:'#f59e0b', symbol:'USD/JPY' },
   CAD: { color:'#ef4444', symbol:'USD/CAD' },
   CHF: { color:'#a78bfa', symbol:'USD/CHF' },
-  USD: { color:'#f97316', symbol:'DXY'     },
   XAU: { color:'#fbbf24', symbol:'XAU/USD' },
   BTC: { color:'#64748b', symbol:'BTC/USD' },
 };
 
-// Vraies paires FTMO uniquement
+// Vraies paires FTMO dans leur sens réel
+// base/quote = sens standard de la paire sur le marché
 const REAL_PAIRS = [
-  {base:'EUR',quote:'USD'},{base:'GBP',quote:'USD'},{base:'USD',quote:'JPY'},
-  {base:'USD',quote:'CAD'},{base:'USD',quote:'CHF'},{base:'AUD',quote:'USD'},
-  {base:'NZD',quote:'USD'},{base:'EUR',quote:'GBP'},{base:'EUR',quote:'CHF'},
-  {base:'EUR',quote:'JPY'},{base:'EUR',quote:'AUD'},{base:'EUR',quote:'NZD'},
-  {base:'EUR',quote:'CAD'},{base:'GBP',quote:'JPY'},{base:'GBP',quote:'CAD'},
-  {base:'GBP',quote:'AUD'},{base:'GBP',quote:'NZD'},{base:'GBP',quote:'CHF'},
-  {base:'AUD',quote:'JPY'},{base:'AUD',quote:'CAD'},{base:'AUD',quote:'NZD'},
-  {base:'AUD',quote:'CHF'},{base:'NZD',quote:'JPY'},{base:'NZD',quote:'CAD'},
-  {base:'NZD',quote:'CHF'},{base:'CAD',quote:'JPY'},{base:'CAD',quote:'CHF'},
-  {base:'CHF',quote:'JPY'},{base:'XAU',quote:'USD'}
+  { base:'EUR', quote:'USD' },
+  { base:'GBP', quote:'USD' },
+  { base:'USD', quote:'JPY' },
+  { base:'USD', quote:'CAD' },
+  { base:'USD', quote:'CHF' },
+  { base:'AUD', quote:'USD' },
+  { base:'NZD', quote:'USD' },
+  { base:'EUR', quote:'GBP' },
+  { base:'EUR', quote:'CHF' },
+  { base:'EUR', quote:'JPY' },
+  { base:'EUR', quote:'AUD' },
+  { base:'EUR', quote:'NZD' },
+  { base:'EUR', quote:'CAD' },
+  { base:'GBP', quote:'JPY' },
+  { base:'GBP', quote:'CAD' },
+  { base:'GBP', quote:'AUD' },
+  { base:'GBP', quote:'NZD' },
+  { base:'GBP', quote:'CHF' },
+  { base:'AUD', quote:'JPY' },
+  { base:'AUD', quote:'CAD' },
+  { base:'AUD', quote:'NZD' },
+  { base:'AUD', quote:'CHF' },
+  { base:'NZD', quote:'JPY' },
+  { base:'NZD', quote:'CAD' },
+  { base:'NZD', quote:'CHF' },
+  { base:'CAD', quote:'JPY' },
+  { base:'CAD', quote:'CHF' },
+  { base:'CHF', quote:'JPY' },
+  { base:'XAU', quote:'USD' },
 ];
+
+// Pour les paires USD/XXX, USD est la base → si score USD > score XXX = paire monte
+// Pour les paires XXX/USD, XXX est la base → si score XXX > score USD = paire monte
+// Mais on n'a pas USD dans les scores, donc on ignore les paires USD/* pour l'instant
+// On les garde dans la liste mais elles seront filtrées si USD n'existe pas dans scores
 
 let state = { data:[], scores:{}, expanded:{}, tab:'dashboard', lastUpdate:null, loading:false };
 
@@ -193,7 +217,6 @@ async function loadData() {
     state.data = rows;
     state.scores = {};
     rows.forEach(r => state.scores[r.currency] = r.score);
-
     const dates = rows.map(r => new Date(r.updated_at)).filter(d => !isNaN(d));
     const latest = new Date(Math.max(...dates));
     state.lastUpdate = latest.toLocaleTimeString('fr-FR', {
@@ -227,7 +250,7 @@ function scoreBarHTML(score) {
     <div class="score-bar-fill" style="left:${left}%;width:${w}%;background:${color}"></div></div>`;
 }
 
-// ── Dashboard — trié par score décroissant ────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────────────────
 function renderCards() {
   const container = document.getElementById('cards-container');
   if (!state.data.length) {
@@ -243,7 +266,6 @@ function renderCards() {
     const open = state.expanded[cur];
     const confColor = row.confluence==='Confluent'?'#10b981':row.confluence==='Mixte'?'#f59e0b':'#ef4444';
     const confLabel = row.confluence==='Confluent'?'Confluent ✓':row.confluence==='Mixte'?'Mixte ⚠':'Divisé ✗';
-
     const tfDetail = open ? `<div class="tf-grid">
       ${['M30','H1','H2'].map(tf => {
         const key = tf==='M30'?'tf_m30':tf==='H1'?'tf_h1':'tf_h2';
@@ -257,7 +279,6 @@ function renderCards() {
         </div>`;
       }).join('')}
     </div>` : '';
-
     return `<div class="card" onclick="toggleCard('${cur}')"
       style="border-color:${open ? meta.color+'55' : '#1e293b'}">
       <div class="card-row">
@@ -282,7 +303,7 @@ function renderCards() {
   }).join('');
 }
 
-// ── Top 3 — vraies paires FTMO, direction réelle ──────────────────────────
+// ── Top 3 — paires réelles FTMO, sens préservé, direction correcte ────────
 function renderTop3() {
   const container = document.getElementById('top3-container');
   if (!state.data.length) {
@@ -294,22 +315,27 @@ function renderTop3() {
   const pairs = [];
 
   for (const p of REAL_PAIRS) {
-    const sB = scores[p.base];
-    const sQ = scores[p.quote];
-    if (sB === undefined || sQ === undefined) continue;
-    const diff = parseFloat((sB - sQ).toFixed(1));
+    const sBase  = scores[p.base];
+    const sQuote = scores[p.quote];
+    // Si une des deux devises n'est pas dans les scores, on skip
+    if (sBase === undefined || sQuote === undefined) continue;
+
+    // diff = score base - score quote
+    // diff > 0 → base plus forte → paire HAUSSIERE (ex: EURUSD monte si EUR fort)
+    // diff < 0 → quote plus forte → paire BAISSIERE (ex: EURUSD baisse si USD fort)
+    // Attention : pour USD/JPY, USD est base → si USD fort, diff > 0 → paire monte
+    const diff = parseFloat((sBase - sQuote).toFixed(1));
     const absDiff = Math.abs(diff);
-    // Direction réelle : si diff > 0, base est plus forte → paire haussière
-    // si diff < 0, quote est plus forte → on inverse la paire → baissier devient haussier de l'autre sens
-    const isHaussier = diff > 0;
-    const displayBase  = isHaussier ? p.base  : p.quote;
-    const displayQuote = isHaussier ? p.quote : p.base;
+    const haussier = diff > 0;
+
     pairs.push({
-      pair: `${displayBase}${displayQuote}`,
-      base: displayBase,
-      quote: displayQuote,
-      diff: absDiff,
-      haussier: true // toujours affiché comme haussier car on a déjà inversé
+      name:     `${p.base}${p.quote}`, // nom réel de la paire, jamais inversé
+      base:     p.base,
+      quote:    p.quote,
+      diff:     absDiff,
+      haussier,
+      fort:     haussier ? p.base  : p.quote,
+      faible:   haussier ? p.quote : p.base,
     });
   }
 
@@ -319,18 +345,22 @@ function renderTop3() {
 
   container.innerHTML = top3.map((p, i) => {
     let dir, color, arrow;
-    if (p.diff > 30)      { dir='HAUSSIER +++'; color='#10b981'; arrow='↑↑↑'; }
-    else if (p.diff > 15) { dir='HAUSSIER ++';  color='#34d399'; arrow='↑↑';  }
-    else                  { dir='HAUSSIER +';   color='#6ee7b7'; arrow='↑';   }
-    const mB = CURRENCY_META[p.base];
-    const mQ = CURRENCY_META[p.quote];
+    if (p.haussier) {
+      if (p.diff > 30)      { dir='HAUSSIER +++'; color='#10b981'; arrow='↑↑↑'; }
+      else if (p.diff > 15) { dir='HAUSSIER ++';  color='#34d399'; arrow='↑↑';  }
+      else                  { dir='HAUSSIER +';   color='#6ee7b7'; arrow='↑';   }
+    } else {
+      if (p.diff > 30)      { dir='BAISSIER ---'; color='#ef4444'; arrow='↓↓↓'; }
+      else if (p.diff > 15) { dir='BAISSIER --';  color='#f87171'; arrow='↓↓';  }
+      else                  { dir='BAISSIER -';   color='#fca5a5'; arrow='↓';   }
+    }
     return `<div class="top3-card">
       <div class="top3-rank">${medals[i]}</div>
       <div style="flex:1">
-        <div class="top3-pair" style="color:${color}">${arrow} ${p.pair}</div>
+        <div class="top3-pair" style="color:${color}">${arrow} ${p.name}</div>
         <div class="top3-diff">
-          <span style="color:${mB?.color}">${p.base}</span> fort vs 
-          <span style="color:${mQ?.color}">${p.quote}</span> faible · Écart ${p.diff} pts
+          <span style="color:${CURRENCY_META[p.fort]?.color}">${p.fort}</span> fort vs
+          <span style="color:${CURRENCY_META[p.faible]?.color}">${p.faible}</span> faible · Écart ${p.diff} pts
         </div>
       </div>
       <div style="font-size:12px;font-weight:700;color:${color};text-align:right">${dir}</div>
@@ -344,16 +374,13 @@ function analyzePair() {
   const errEl = document.getElementById('pair-error');
   const resEl = document.getElementById('pair-result');
   errEl.style.display='none'; resEl.innerHTML='';
-
   if (pair.length !== 6) { errEl.textContent='Paire invalide · ex : EURJPY'; errEl.style.display='block'; return; }
   const base = pair.slice(0,3), quote = pair.slice(3,6);
   if (!CURRENCY_META[base])  { errEl.textContent=`Non supporté : ${base}`;  errEl.style.display='block'; return; }
   if (!CURRENCY_META[quote]) { errEl.textContent=`Non supporté : ${quote}`; errEl.style.display='block'; return; }
-
   const sB = state.scores[base]  ?? 0;
   const sQ = state.scores[quote] ?? 0;
   const diff = parseFloat((sB - sQ).toFixed(1));
-
   let dir, str, color, arrow;
   if (diff > 30)       { dir='HAUSSIER'; str='+++'; color='#10b981'; arrow='↑↑↑'; }
   else if (diff > 15)  { dir='HAUSSIER'; str='++';  color='#34d399'; arrow='↑↑';  }
@@ -361,10 +388,8 @@ function analyzePair() {
   else if (diff < -30) { dir='BAISSIER'; str='---'; color='#ef4444'; arrow='↓↓↓'; }
   else if (diff < -15) { dir='BAISSIER'; str='--';  color='#f87171'; arrow='↓↓';  }
   else                 { dir='BAISSIER'; str='-';   color='#fca5a5'; arrow='↓';   }
-
   const bB = getBias(sB), bQ = getBias(sQ);
   const mB = CURRENCY_META[base], mQ = CURRENCY_META[quote];
-
   resEl.innerHTML = `
     <div class="pair-result" style="background:${color}11;border:1px solid ${color}44">
       <div style="font-size:26px;font-weight:800;color:${color};font-family:monospace;letter-spacing:3px">${arrow} ${pair}</div>
@@ -427,7 +452,6 @@ async function handleRefresh() {
 }
 
 setInterval(() => loadData(), 30 * 60 * 1000);
-
 updateSessions();
 setInterval(updateSessions, 60000);
 loadData();
