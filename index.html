@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">  
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CME Bias Tool V2</title>
+<title>CME Bias Tool</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -97,14 +97,14 @@
 
   <div id="view-top3" style="display:none">
     <div class="panel">
-      <div class="panel-label">Meilleures opportunités — écart de force le plus élevé (forex majeurs uniquement)</div>
+      <div class="panel-label">Top 3 opportunités — plus grand écart de force · paires FTMO uniquement</div>
       <div id="top3-container"></div>
     </div>
   </div>
 
   <div id="view-pair" style="display:none">
     <div class="panel">
-      <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF · XAU · BTC</div>
+      <div class="panel-label">Devises : EUR · GBP · AUD · NZD · JPY · CAD · CHF · USD · XAU · BTC</div>
       <div style="display:flex;gap:8px">
         <input class="pair-input" id="pair-input" placeholder="GBPJPY" maxlength="6"
           oninput="this.value=this.value.toUpperCase()"
@@ -129,16 +129,28 @@ const CURRENCY_META = {
   JPY: { color:'#f59e0b', symbol:'USD/JPY' },
   CAD: { color:'#ef4444', symbol:'USD/CAD' },
   CHF: { color:'#a78bfa', symbol:'USD/CHF' },
+  USD: { color:'#f97316', symbol:'DXY'     },
   XAU: { color:'#fbbf24', symbol:'XAU/USD' },
-  BTC: { color:'#f97316', symbol:'BTC/USD' },
+  BTC: { color:'#64748b', symbol:'BTC/USD' },
 };
 
-// Paires autorisées dans le Top 3 — pas de croisements XAU sauf XAUUSD, pas de BTC croisé
-const FOREX_ONLY = ['EUR','GBP','AUD','NZD','JPY','CAD','CHF'];
+// Vraies paires FTMO uniquement
+const REAL_PAIRS = [
+  {base:'EUR',quote:'USD'},{base:'GBP',quote:'USD'},{base:'USD',quote:'JPY'},
+  {base:'USD',quote:'CAD'},{base:'USD',quote:'CHF'},{base:'AUD',quote:'USD'},
+  {base:'NZD',quote:'USD'},{base:'EUR',quote:'GBP'},{base:'EUR',quote:'CHF'},
+  {base:'EUR',quote:'JPY'},{base:'EUR',quote:'AUD'},{base:'EUR',quote:'NZD'},
+  {base:'EUR',quote:'CAD'},{base:'GBP',quote:'JPY'},{base:'GBP',quote:'CAD'},
+  {base:'GBP',quote:'AUD'},{base:'GBP',quote:'NZD'},{base:'GBP',quote:'CHF'},
+  {base:'AUD',quote:'JPY'},{base:'AUD',quote:'CAD'},{base:'AUD',quote:'NZD'},
+  {base:'AUD',quote:'CHF'},{base:'NZD',quote:'JPY'},{base:'NZD',quote:'CAD'},
+  {base:'NZD',quote:'CHF'},{base:'CAD',quote:'JPY'},{base:'CAD',quote:'CHF'},
+  {base:'CHF',quote:'JPY'},{base:'XAU',quote:'USD'}
+];
 
 let state = { data:[], scores:{}, expanded:{}, tab:'dashboard', lastUpdate:null, loading:false };
 
-// ── Sessions Paris (Europe/Paris) ─────────────────────────────────────────
+// ── Sessions Paris ────────────────────────────────────────────────────────
 function getParisHour() {
   const now = new Date();
   const parisTime = new Date(now.toLocaleString('en-US', { timeZone:'Europe/Paris' }));
@@ -148,30 +160,25 @@ function getParisHour() {
 function getSessions() {
   const h = getParisHour();
   const sessions = [];
-  // Tokyo : 01h00 → 10h00 Paris (heure été) / 02h00 → 11h00 (heure hiver) — approx 01h-10h
-  if (h >= 1 && h < 10)   sessions.push('🇯🇵 Tokyo');
-  // Londres : 09h00 → 18h00 Paris
-  if (h >= 9 && h < 18)   sessions.push('🇬🇧 Londres');
-  // New York : 14h00 → 23h00 Paris
-  if (h >= 14 && h < 23)  sessions.push('🇺🇸 New York');
+  if (h >= 1  && h < 10) sessions.push('🇯🇵 Tokyo');
+  if (h >= 9  && h < 18) sessions.push('🇬🇧 Londres');
+  if (h >= 14 && h < 23) sessions.push('🇺🇸 New York');
   return sessions;
 }
 
 function updateSessions() {
   const sessions = getSessions();
   const el = document.getElementById('sessions-row');
-  if (sessions.length === 0) {
+  if (!sessions.length) {
     el.innerHTML = `<div class="session-pill session-off">○ Hors session</div>`;
   } else {
-    el.innerHTML = sessions.map(s =>
-      `<div class="session-pill session-on">● ${s}</div>`
-    ).join('');
+    el.innerHTML = sessions.map(s => `<div class="session-pill session-on">● ${s}</div>`).join('');
   }
 }
 
-// ── Supabase fetch ────────────────────────────────────────────────────────
+// ── Supabase ──────────────────────────────────────────────────────────────
 async function fetchFromSupabase() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/bias_data?select=*&order=currency.asc`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bias_data?select=*&order=score.desc`, {
     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
@@ -187,13 +194,11 @@ async function loadData() {
     state.scores = {};
     rows.forEach(r => state.scores[r.currency] = r.score);
 
-    // Heure de MAJ réelle depuis Supabase updated_at
     const dates = rows.map(r => new Date(r.updated_at)).filter(d => !isNaN(d));
     const latest = new Date(Math.max(...dates));
     state.lastUpdate = latest.toLocaleTimeString('fr-FR', {
-      timeZone: 'Europe/Paris', hour:'2-digit', minute:'2-digit'
+      timeZone:'Europe/Paris', hour:'2-digit', minute:'2-digit'
     });
-
     updateBadge(true);
   } catch(e) {
     console.error(e);
@@ -222,7 +227,7 @@ function scoreBarHTML(score) {
     <div class="score-bar-fill" style="left:${left}%;width:${w}%;background:${color}"></div></div>`;
 }
 
-// ── Render Dashboard ──────────────────────────────────────────────────────
+// ── Dashboard — trié par score décroissant ────────────────────────────────
 function renderCards() {
   const container = document.getElementById('cards-container');
   if (!state.data.length) {
@@ -277,7 +282,7 @@ function renderCards() {
   }).join('');
 }
 
-// ── Render Top 3 (forex majeurs uniquement, pas de XAU croisé) ───────────
+// ── Top 3 — vraies paires FTMO, direction réelle ──────────────────────────
 function renderTop3() {
   const container = document.getElementById('top3-container');
   if (!state.data.length) {
@@ -288,17 +293,24 @@ function renderTop3() {
   const scores = state.scores;
   const pairs = [];
 
-  // Uniquement les croisements entre devises forex majeures
-  for (let i = 0; i < FOREX_ONLY.length; i++) {
-    for (let j = i+1; j < FOREX_ONLY.length; j++) {
-      const a = FOREX_ONLY[i], b = FOREX_ONLY[j];
-      if (scores[a] === undefined || scores[b] === undefined) continue;
-      const diff = parseFloat((scores[a] - scores[b]).toFixed(1));
-      const absDiff = Math.abs(diff);
-      const base = diff > 0 ? a : b;
-      const quote = diff > 0 ? b : a;
-      pairs.push({ pair:`${base}${quote}`, base, quote, diff:absDiff });
-    }
+  for (const p of REAL_PAIRS) {
+    const sB = scores[p.base];
+    const sQ = scores[p.quote];
+    if (sB === undefined || sQ === undefined) continue;
+    const diff = parseFloat((sB - sQ).toFixed(1));
+    const absDiff = Math.abs(diff);
+    // Direction réelle : si diff > 0, base est plus forte → paire haussière
+    // si diff < 0, quote est plus forte → on inverse la paire → baissier devient haussier de l'autre sens
+    const isHaussier = diff > 0;
+    const displayBase  = isHaussier ? p.base  : p.quote;
+    const displayQuote = isHaussier ? p.quote : p.base;
+    pairs.push({
+      pair: `${displayBase}${displayQuote}`,
+      base: displayBase,
+      quote: displayQuote,
+      diff: absDiff,
+      haussier: true // toujours affiché comme haussier car on a déjà inversé
+    });
   }
 
   pairs.sort((a,b) => b.diff - a.diff);
@@ -310,14 +322,15 @@ function renderTop3() {
     if (p.diff > 30)      { dir='HAUSSIER +++'; color='#10b981'; arrow='↑↑↑'; }
     else if (p.diff > 15) { dir='HAUSSIER ++';  color='#34d399'; arrow='↑↑';  }
     else                  { dir='HAUSSIER +';   color='#6ee7b7'; arrow='↑';   }
-    const mB = CURRENCY_META[p.base], mQ = CURRENCY_META[p.quote];
+    const mB = CURRENCY_META[p.base];
+    const mQ = CURRENCY_META[p.quote];
     return `<div class="top3-card">
       <div class="top3-rank">${medals[i]}</div>
       <div style="flex:1">
         <div class="top3-pair" style="color:${color}">${arrow} ${p.pair}</div>
         <div class="top3-diff">
-          <span style="color:${mB.color}">${p.base}</span> vs 
-          <span style="color:${mQ.color}">${p.quote}</span> · Écart ${p.diff} pts
+          <span style="color:${mB?.color}">${p.base}</span> fort vs 
+          <span style="color:${mQ?.color}">${p.quote}</span> faible · Écart ${p.diff} pts
         </div>
       </div>
       <div style="font-size:12px;font-weight:700;color:${color};text-align:right">${dir}</div>
@@ -334,10 +347,10 @@ function analyzePair() {
 
   if (pair.length !== 6) { errEl.textContent='Paire invalide · ex : EURJPY'; errEl.style.display='block'; return; }
   const base = pair.slice(0,3), quote = pair.slice(3,6);
-  if (!CURRENCY_META[base]) { errEl.textContent=`Non supporté : ${base}`; errEl.style.display='block'; return; }
+  if (!CURRENCY_META[base])  { errEl.textContent=`Non supporté : ${base}`;  errEl.style.display='block'; return; }
   if (!CURRENCY_META[quote]) { errEl.textContent=`Non supporté : ${quote}`; errEl.style.display='block'; return; }
 
-  const sB = state.scores[base] ?? 0;
+  const sB = state.scores[base]  ?? 0;
   const sQ = state.scores[quote] ?? 0;
   const diff = parseFloat((sB - sQ).toFixed(1));
 
@@ -413,10 +426,8 @@ async function handleRefresh() {
   await loadData();
 }
 
-// ── Auto refresh Supabase toutes les 30min ────────────────────────────────
 setInterval(() => loadData(), 30 * 60 * 1000);
 
-// ── Init ──────────────────────────────────────────────────────────────────
 updateSessions();
 setInterval(updateSessions, 60000);
 loadData();
